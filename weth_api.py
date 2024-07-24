@@ -74,6 +74,8 @@ def load_weth_data_to_df(data):
     df['condition'] = df['condition'].apply(lambda x: x['text'])
     df['pressure_hg'] = df['pressure_mb'] * mibar_cf
 
+    df['time'] = pd.to_datetime(df['time'])
+
     df = df[columns]
 
     df['place'] = data['location']['name']
