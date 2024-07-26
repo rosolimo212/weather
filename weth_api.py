@@ -9,6 +9,35 @@ import os
 import json
 import yaml
 
+import os
+current_dir = os.path.abspath(os.getcwd())
+parent_dir = os.path.dirname(current_dir)
+
+import sys
+sys.path.append(current_dir)
+
+# import gpt
+
+
+metric_dct = {
+                'temp_c': 'температура', 
+                'feelslike_c': 'воспринимаемая температура',
+                'windchill_c': 'температура ветра',
+                'heatindex_c': 'воспринимаемый индекс',
+                # 'condition': 'погода',
+                'wind_kph': 'скорость ветра',
+                # 'wind_dir': 'направление ветра',
+                'pressure_hg': 'давление',
+                'precip_mm': 'уровень осадков',
+                'humidity': 'влажность',
+                'cloud': 'облачность',
+                # 'will_it_rain': 'будет ли дождь',
+                # 'will_it_snow': 'будет ли снег',
+                'chance_of_rain': 'вероятность дождя',
+                'chance_of_snow': 'вероятность снега',
+                'uv': 'УФ-индекс',
+}
+
 def read_yaml_config(yaml_file: str, section: str) -> dict:
     """
     Reading yaml settings
@@ -51,6 +80,7 @@ def load_weth_data_to_df(data):
     mibar_cf = 0.750061683 
     columns = [
                 'time', 
+                'time_epoch',
                 'is_day',
                 'temp_c', 
                 'feelslike_c',
@@ -71,6 +101,8 @@ def load_weth_data_to_df(data):
         df_buf = pd.DataFrame(data['forecast']['forecastday'][day]['hour']) 
         df = pd.concat([df, df_buf])
 
+    # df['utc_time'] = pd.to_datetime(row['date_epoch'], unit='s', utc=True)
+
     df['condition'] = df['condition'].apply(lambda x: x['text'])
     df['pressure_hg'] = df['pressure_mb'] * mibar_cf
 
@@ -85,3 +117,67 @@ def load_weth_data_to_df(data):
     df['lon'] = data['location']['lon']
 
     return df
+
+def linear(x, k, b, c) -> float:
+    """
+    linear approximation
+    """
+    return k * x + b
+
+
+def calc_trends(work_df, x, y):
+    """
+    Finding trends: increasing, decreasing, flat
+    """
+    from scipy.optimize import curve_fit
+    popt, pcov = curve_fit(linear, work_df[x], work_df[y], 
+                        # bounds=[0, np.inf],
+                        method='trf',  #'lm', 'trf', 'dogbox'
+                        )
+    res = ''
+    if popt[0] >= 0.05:
+        res = 1 
+    elif popt[0] <= -0.05:
+        res = -1
+    else:
+        res = 0
+    return res
+
+def calc_metric(work_df, x, y):
+    """
+    Metric from dataframe to text
+    """
+    min = np.min(work_df[y])
+    max = np.max(work_df[y])
+    mean = np.round(np.mean(work_df[y]),0)
+    trend = calc_trends(work_df, x, y)
+
+    txt = ''
+
+    if trend == 1:
+        txt = "В ближайшее время " + metric_dct[y] + " составит " + str(mean) + ": вырастет с " + str(min) + " до " + str(max) + '\n'
+    elif trend == -1:
+        txt = "В ближайшее время " + metric_dct[y] + " составит " + str(mean) + ": уменьшится с " + str(max) + " до " + str(min) + '\n'
+    else:
+        txt = "В ближайшее время " + metric_dct[y] + " составит " + str(mean) + " и практически не изменится"  + '\n'
+
+    return txt
+
+def get_txt_for_forecast(df, forec_txt, hours=4):
+    import datetime 
+    from datetime import timedelta
+
+    now = datetime.datetime.now() 
+    now_round = now.replace(minute=0, second=0, microsecond=0)
+    forecast_finish = now_round + timedelta(hours=hours) 
+
+    work_df = df[
+        (df['time'] >= now_round) &
+        (df['time'] < forecast_finish)
+                ]
+    work_df['hour'] = work_df.index
+
+    for metric in list(metric_dct.keys()):
+        forec_txt = forec_txt + calc_metric(work_df, 'hour', metric)
+
+    return forec_txt
