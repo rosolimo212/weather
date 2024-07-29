@@ -55,7 +55,7 @@ option_message = """Доступные сейчас опции: 1,2,3
 """
 finish_message = """'ОК' возвращает вас в главное меню
 """
-
+error_message = """К сожалению, в данный момент мы не может забрать прогноз по указанному вами городу, попробуйте ввести как-то по-другому"""
 
 # about buttons
 def make_answer_buttons(buttons_lst):
@@ -92,12 +92,24 @@ async def process_city(message: types.Message, state: FSMContext):
     city = message.text  # Получаем город от пользователя
     await state.update_data(city=city)  # Запоминаем город в состоянии
     make_event_log(message, event_name='city_select', params={'city': city, 'state': 'main'})
-    await show_main_menu(message)
+
+    gwd = wa.get_weth_data(forecast_api_key, base_url, method, city, 2)
+    if gwd != '':
+        await state.update_data(gwd=gwd)
+        await show_main_menu(message)
+    else:
+        markup = make_answer_buttons([
+        'Москва',
+        'Тбилиси'
+                            ])
+        await message.answer(error_message, reply_markup=markup)
+
 
 @dp.message_handler(state=Form.waiting_for_option)
 async def process_option(message: types.Message, state: FSMContext):
     user_data = await state.get_data()  # Получаем данные пользователя
     city = user_data.get("city")  # Извлекаем город
+    gwd = user_data.get("gwd")
 
     markup = make_answer_buttons([
     'Что надеть по погоде прямо сейчас?',
@@ -108,13 +120,13 @@ async def process_option(message: types.Message, state: FSMContext):
 
     if message.text.lower() == 'Что надеть по погоде прямо сейчас?'.lower():
         make_event_log(message, event_name='option_select', params={'option': 1, 'state': 'main'})
-        result = await general_process(city, message)
+        result = await general_process(gwd, message)
     elif message.text.lower() == 'Какая сейчас температура?'.lower():
         make_event_log(message, event_name='option_select', params={'option': 2, 'state': 'main'})
-        result = await direct_process(city, message)
+        result = await direct_process(gwd, message)
     elif message.text.lower() == 'Дождь будет?'.lower():
         make_event_log(message, event_name='option_select', params={'option': 3, 'state': 'main'})
-        result = await indirect_process(city, message)
+        result = await indirect_process(gwd, message)
     else:
         await message.answer(option_message, reply_markup=markup)
         return
@@ -139,8 +151,7 @@ async def show_main_menu(message: types.Message):
     await message.answer(option_message, reply_markup=markup)
     await Form.waiting_for_option.set()  # Устанавливаем состояние ожидания опции
 
-async def general_process(city, message):
-    gwd = wa.get_weth_data(forecast_api_key, base_url, method, city, 2) 
+async def general_process(gwd, message):
     df = wa.load_weth_data_to_df(gwd)
     forec_message = wa.get_txt_for_forecast(df)
     gpt_answer = gpt.send_message(gpt_api_key, forec_message, model='gpt-4o-mini')
@@ -148,16 +159,14 @@ async def general_process(city, message):
 
     return gpt_answer
 
-async def direct_process(city, message):
-    gwd = wa.get_weth_data(forecast_api_key, base_url, method, city, 2)
+async def direct_process(gwd, message):
     df = wa.load_weth_data_to_df(gwd)
     forec_message = wa.get_txt_for_forecast(df, metrics=[0,1], is_templ=0)
     make_event_log(message, event_name='back_response', params={'response': forec_message, type: 'forecast', 'state': 'main'})
 
     return forec_message
 
-async def indirect_process(city, message):
-    gwd = wa.get_weth_data(forecast_api_key, base_url, method, city, 2)
+async def indirect_process(gwd, message):
     df = wa.load_weth_data_to_df(gwd)
     forec_message = wa.get_txt_for_forecast(df, metrics=[9], is_templ=0)
     make_event_log(message, event_name='back_response', params={'response': forec_message, type: 'forecast', 'state': 'main'})
