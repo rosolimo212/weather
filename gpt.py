@@ -8,8 +8,9 @@ import sys
 sys.path.append(current_dir)
 
 import weth_api as wa
+import data_load as dl
 
-settings = wa.read_yaml_config('config.yaml', section='gpt')
+settings = dl.read_yaml_config('config.yaml', section='gpt')
 api_key = settings['api_key']
 
 def send_message(api_key, message, model='gpt-4o-mini'):

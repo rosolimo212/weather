@@ -16,7 +16,7 @@ parent_dir = os.path.dirname(current_dir)
 import sys
 sys.path.append(current_dir)
 
-# import gpt
+import data_load as dl
 
 
 metric_dct = {
@@ -37,18 +37,6 @@ metric_dct = {
                 'chance_of_snow': 'вероятность снега',
                 'uv': 'УФ-индекс',
 }
-
-def read_yaml_config(yaml_file: str, section: str) -> dict:
-    """
-    Reading yaml settings
-    """
-    with open(yaml_file, 'r') as yaml_stream:
-        descriptor = yaml.full_load(yaml_stream)
-        if section in descriptor:
-            configuration = descriptor[section]
-            return configuration
-        else:
-            print(f"Section {section} not find in the file '{yaml_file}'")
 
 def get_weth_data(api_key, base_url, method, location, days):
     """
@@ -163,9 +151,19 @@ def calc_metric(work_df, x, y):
 
     return txt
 
-def get_txt_for_forecast(df, forec_txt, hours=4):
+def get_txt_for_forecast(df, hours=4, metrics=[], is_templ=1):
     import datetime 
     from datetime import timedelta
+
+    forec_txt = """
+Дай, пожалуйста, пару рекомендаций как одеться семье по погоде.
+Я пришлю тебе показатели прогноза, а ты кратко расскажешь, как лучше одеться:
+сначала очень кратко оцени предстоящую погоду,
+потом дай рекомендации по одежде для взрослых,
+потом - рекомендации ребёнку 3-5 лет, если они отличаются от рекомендации для взрослых
+Обобщать и писать про всякие закономерности не нужно, только рекомендации кратко и по делу, каждая рекомендация в отдельном абзаце
+По прогнозу погоды в моей местности ожидаются следующие показатели: \n
+"""
 
     now = datetime.datetime.now() 
     now_round = now.replace(minute=0, second=0, microsecond=0)
@@ -177,7 +175,18 @@ def get_txt_for_forecast(df, forec_txt, hours=4):
                 ]
     work_df['hour'] = work_df.index
 
-    for metric in list(metric_dct.keys()):
+    if metrics == []:
+        work_dct = metric_dct.copy()
+    else:
+        work_dct = {}
+        for item in metrics:
+            el = list(metric_dct.keys())[item]
+            work_dct.update({el:metric_dct[el]})
+
+    if is_templ == 0:
+        forec_txt = ''
+    
+    for metric in list(work_dct.keys()):
         forec_txt = forec_txt + calc_metric(work_df, 'hour', metric)
 
     return forec_txt
