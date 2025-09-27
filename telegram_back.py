@@ -50,13 +50,18 @@ def make_event_log(message, event_name, params):
     # dl.insert_data(log_df, 'tl', 'events')
 
 
-hello_message = """Привет! Этот бот поможет тебе с погодой! Для начала, пожалуйста, введи или выбери название твоего города
+hello_message = """Привет! Этот бот поможет тебе одеться по погоде! Для начала, пожалуйста, введи или выбери название твоего города
 """
-option_message = """Доступные сейчас опции: 1,2,3
+option_message = """Доступные сейчас опции:
 """
 finish_message = """'ОК' возвращает вас в главное меню
 """
 error_message = """К сожалению, в данный момент мы не может забрать прогноз по указанному вами городу, попробуйте ввести как-то по-другому"""
+get_weather_message = """Прогноз погоды на ближайшие часы найден!
+"""
+get_gpt_message = """
+Рекомендации из прогноза формулируются, это должно занять пару секунд
+"""
 
 # about buttons
 def make_answer_buttons(buttons_lst):
@@ -82,7 +87,7 @@ dp = Dispatcher(bot, storage=storage)
 async def cmd_start(message: types.Message, state: FSMContext):
     markup = make_answer_buttons([
         'Москва',
-        'Тбилиси'
+        'Санкт-Петербург'
                             ])
     await state.finish()  # Сбрасываем все состояния
     await Form.waiting_for_city.set()  # Устанавливаем состояние ожидания города
@@ -101,7 +106,7 @@ async def process_city(message: types.Message, state: FSMContext):
     else:
         markup = make_answer_buttons([
         'Москва',
-        'Тбилиси'
+        'Санкт-Петербург'
                             ])
         await message.answer(error_message, reply_markup=markup)
 
@@ -154,7 +159,9 @@ async def show_main_menu(message: types.Message):
 
 async def general_process(gwd, message):
     df = wa.load_weth_data_to_df(gwd)
+    await message.answer(get_weather_message)
     forec_message = wa.get_txt_for_forecast(df)
+    await message.answer(get_gpt_message)
     gpt_answer = gpt.send_message(API_KEY=gpt_api_key, CATALOG_ID=gpt_catalog_id, text=forec_message)
     make_event_log(message, event_name='back_response', params={'response': gpt_answer, type: 'gpt', 'state': 'main'})
 
