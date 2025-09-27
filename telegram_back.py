@@ -26,7 +26,8 @@ method = forecast_settings['method']
 forecast_api_key = forecast_settings['api_key']
 
 gpt_settings = dl.read_yaml_config('config.yaml', section='gpt')
-gpt_api_key = gpt_settings['api_key']
+gpt_api_key = gpt_settings['API_KEY']
+gpt_catalog_id = gpt_settings['CATALOG_ID']
 
 telegram_settings = dl.read_yaml_config('config.yaml', section='telgram_test_bot')
 telegram_api_token = telegram_settings['token']
@@ -154,7 +155,7 @@ async def show_main_menu(message: types.Message):
 async def general_process(gwd, message):
     df = wa.load_weth_data_to_df(gwd)
     forec_message = wa.get_txt_for_forecast(df)
-    gpt_answer = gpt.send_message(gpt_api_key, forec_message, model='gpt-4o-mini')
+    gpt_answer = gpt.send_message(API_KEY=gpt_api_key, CATALOG_ID=gpt_catalog_id, text=forec_message)
     make_event_log(message, event_name='back_response', params={'response': gpt_answer, type: 'gpt', 'state': 'main'})
 
     return gpt_answer
