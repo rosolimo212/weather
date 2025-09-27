@@ -18,6 +18,7 @@ sys.path.append(current_dir)
 
 import data_load as dl
 
+forec_txt = ''
 
 metric_dct = {
                 'temp_c': 'температура', 
@@ -155,15 +156,8 @@ def get_txt_for_forecast(df, hours=4, metrics=[], is_templ=1):
     import datetime 
     from datetime import timedelta
 
-    forec_txt = """
-Дай, пожалуйста, пару рекомендаций как одеться семье по погоде.
-Я пришлю тебе показатели прогноза, а ты кратко расскажешь, как лучше одеться:
-сначала очень кратко оцени предстоящую погоду,
-потом дай рекомендации по одежде для взрослых,
-потом - рекомендации ребёнку 3-5 лет, если они отличаются от рекомендации для взрослых
-Обобщать и писать про всякие закономерности не нужно, только рекомендации кратко и по делу, каждая рекомендация в отдельном абзаце
-По прогнозу погоды в моей местности ожидаются следующие показатели: \n
-"""
+    with open('prompt.txt', 'r') as f:
+        forec_txt = f.read()
 
     now = datetime.datetime.now() 
     now_round = now.replace(minute=0, second=0, microsecond=0)
