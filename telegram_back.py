@@ -50,14 +50,17 @@ def make_event_log(message, event_name, params):
     # dl.insert_data(log_df, 'tl', 'events')
 
 
-hello_message = """Привет! Этот бот поможет тебе одеться по погоде! Для начала, пожалуйста, введи или выбери название твоего города
+hello_message = """Привет! Этот бот поможет тебе одеться по погоде! 
+Для начала, пожалуйста, введи или выбери название твоего города
+Можно напечатать название города вручную или отправить геопозицию
 """
-option_message = """Доступные сейчас опции:
+check_message = """Мы получили локацию. Ближайшая доступная метеостанция находится в локакции {city} """
+option_message = """Доступные сейчас для локации {city} опции:
 """
 finish_message = """'ОК' возвращает вас в главное меню
 """
 error_message = """К сожалению, в данный момент мы не может забрать прогноз по указанному вами городу, попробуйте ввести как-то по-другому"""
-get_weather_message = """Прогноз погоды на ближайшие часы найден!
+get_weather_message = """Прогноз погоды на ближайшие часы для локации {city} найден!
 """
 get_gpt_message = """
 Рекомендации из прогноза формулируются, это должно занять пару секунд
@@ -90,15 +93,15 @@ async def cmd_start(message: types.Message, state: FSMContext):
         'Санкт-Петербург',
                             ])
     markup.add(types.KeyboardButton("Отправить геопозицию 📍", request_location=True))
-    await state.finish()  # Сбрасываем все состояния
-    await state.set_state(Form.waiting_for_city)  # Устанавливаем состояние ожидания города
+    await state.finish()  
+    await state.set_state(Form.waiting_for_city) 
     await message.answer(hello_message, reply_markup=markup)
 
 @dp.message_handler(content_types=['text', 'location'], state=Form.waiting_for_city)
 async def process_city(message: types.Message, state: FSMContext):
     # если геопозиция непустая, то записываем её
     if message.location is not None:
-        city = message.location
+        city = str(message.location.latitude) + ', ' + str(message.location.longitude)
     # иначе - берём тест из сообщения пользователя
     else:   
         city = message.text  # Получаем город от пользователя
@@ -141,7 +144,7 @@ async def process_option(message: types.Message, state: FSMContext):
         make_event_log(message, event_name='option_select', params={'option': 3, 'state': 'main'})
         result = await indirect_process(gwd, message)
     else:
-        await message.answer(option_message, reply_markup=markup)
+        await message.answer(option_message.format(city=gwd['location']['name']), reply_markup=markup)
         return
 
     markup = make_answer_buttons([
@@ -155,24 +158,22 @@ async def process_option(message: types.Message, state: FSMContext):
 async def back_to_main_menu(message: types.Message, state: FSMContext):
     await show_main_menu(message, state)
 
-@dp.message_handler(lambda message: message.text.lower() == "markupqqОтправить геопозицию".lower(), state=Form.waiting_for_city)
-async def get_geo(message: types.Message, state: FSMContext):
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    kb.add(types.KeyboardButton("Отправить геопозицию 📍", request_location=True))
-    await message.answer("Запустили функцию", reply_markup=kb)
-
 async def show_main_menu(message: types.Message, state: FSMContext):
+    user_data = await state.get_data()  # Получаем данные пользователя
+    city = user_data.get("city")
+    gwd = user_data.get("gwd")
+    await message.answer(check_message.format(city=gwd['location']['name']))
     markup = make_answer_buttons([
     'Что надеть по погоде прямо сейчас?',
     'Какая сейчас температура?',
     'Дождь будет?',
                         ])
-    await message.answer(option_message, reply_markup=markup)
+    await message.answer(option_message.format(city=gwd['location']['name']), reply_markup=markup)
     await state.set_state(Form.waiting_for_option)  # Устанавливаем состояние ожидания опции
 
 async def general_process(gwd, message):
     df = wa.load_weth_data_to_df(gwd)
-    await message.answer(get_weather_message)
+    await message.answer(get_weather_message.format(city=df['place'].values[0]))
     forec_message = wa.get_txt_for_forecast(df)
     await message.answer(get_gpt_message)
     gpt_answer = gpt.send_message(API_KEY=gpt_api_key, CATALOG_ID=gpt_catalog_id, text=forec_message)
