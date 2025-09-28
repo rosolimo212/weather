@@ -47,7 +47,7 @@ def make_event_log(message, event_name, params):
     log_df = pd.DataFrame([log_lst])
     log_df.columns = ['event_time', 'user_id', 'user_name', 'event_name', 'parameters']
     print(log_df)
-    # dl.insert_data(log_df, 'tl', 'events')
+    dl.insert_data(log_df, 'tl', 'events')
 
 
 hello_message = """Привет! Этот бот поможет тебе одеться по погоде! 
