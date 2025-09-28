@@ -87,22 +87,29 @@ dp = Dispatcher(bot, storage=storage)
 async def cmd_start(message: types.Message, state: FSMContext):
     markup = make_answer_buttons([
         'Москва',
-        'Санкт-Петербург'
+        'Санкт-Петербург',
                             ])
+    markup.add(types.KeyboardButton("Отправить геопозицию 📍", request_location=True))
     await state.finish()  # Сбрасываем все состояния
-    await Form.waiting_for_city.set()  # Устанавливаем состояние ожидания города
+    await state.set_state(Form.waiting_for_city)  # Устанавливаем состояние ожидания города
     await message.answer(hello_message, reply_markup=markup)
 
-@dp.message_handler(state=Form.waiting_for_city)
+@dp.message_handler(content_types=['text', 'location'], state=Form.waiting_for_city)
 async def process_city(message: types.Message, state: FSMContext):
-    city = message.text  # Получаем город от пользователя
+    # если геопозиция непустая, то записываем её
+    if message.location is not None:
+        city = message.location
+    # иначе - берём тест из сообщения пользователя
+    else:   
+        city = message.text  # Получаем город от пользователя
+    
     await state.update_data(city=city)  # Запоминаем город в состоянии
     make_event_log(message, event_name='city_select', params={'city': city, 'state': 'main'})
 
     gwd = wa.get_weth_data(forecast_api_key, base_url, method, city, 2)
     if gwd != '':
         await state.update_data(gwd=gwd)
-        await show_main_menu(message)
+        await show_main_menu(message, state)
     else:
         markup = make_answer_buttons([
         'Москва',
@@ -142,20 +149,26 @@ async def process_option(message: types.Message, state: FSMContext):
                         ])
     await message.answer(result)  # Отправляем результат пользователю
     await message.answer(finish_message, reply_markup=markup)
-    await Form.waiting_for_option.set()  # Сохраняем состояние ожидания опции
+    await state.set_state(Form.waiting_for_option)  # Сохраняем состояние ожидания опции
 
 @dp.message_handler(lambda message: message.text.lower() == "Ok", state=Form.waiting_for_option)
 async def back_to_main_menu(message: types.Message, state: FSMContext):
-    await show_main_menu(message)
+    await show_main_menu(message, state)
 
-async def show_main_menu(message: types.Message):
+@dp.message_handler(lambda message: message.text.lower() == "markupqqОтправить геопозицию".lower(), state=Form.waiting_for_city)
+async def get_geo(message: types.Message, state: FSMContext):
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    kb.add(types.KeyboardButton("Отправить геопозицию 📍", request_location=True))
+    await message.answer("Запустили функцию", reply_markup=kb)
+
+async def show_main_menu(message: types.Message, state: FSMContext):
     markup = make_answer_buttons([
     'Что надеть по погоде прямо сейчас?',
     'Какая сейчас температура?',
     'Дождь будет?',
                         ])
     await message.answer(option_message, reply_markup=markup)
-    await Form.waiting_for_option.set()  # Устанавливаем состояние ожидания опции
+    await state.set_state(Form.waiting_for_option)  # Устанавливаем состояние ожидания опции
 
 async def general_process(gwd, message):
     df = wa.load_weth_data_to_df(gwd)
